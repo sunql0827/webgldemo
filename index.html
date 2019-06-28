@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+
+	<head>
+		<title>装修全景</title>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link href="css/page.css" rel="stylesheet">
+		<script type="text/javascript" src="js/three.min.js"></script>
+		<!--<script type="text/javascript" src="js/jquery-2.1.0.js"></script>-->
+		<script type="text/javascript" src="js/D.min.js"></script>
+		<script type="text/javascript" src="js/doT.min.js"></script>
+		<!--<script type="text/javascript" src="js/photo-sphere-viewer.min.js"></script>-->
+		<script type="text/javascript" src="js/WebGL.js"></script>
+		<script type="text/javascript" src="js/OrbitControls.js"></script>
+		<script type="text/javascript" src="js/stats.min.js"></script>
+		<!--<script src="js/main.js"></script>-->
+		<style type="text/css">
+			.haorooms_container,
+			.dialogs-mask,
+			.content {
+				width: 100%;
+				height: 100%;
+				margin: 0;
+				padding: 0;
+			}
+			
+			@media only screen and (min-width: 320px) and (max-width: 460px) {
+				.dialog {
+					width: 80%;
+					height: 10rem;
+				}
+			}
+			
+			@media only screen and (min-width: 460px) {
+				.dialog {
+					width: 20rem;
+					height: 10rem;
+				}
+			}
+			
+			.dialog {
+				display: inline-block;
+				position: relative;
+				background-color: white;
+				border-radius: 12px;
+				padding: 0.5rem;
+				text-align: center;
+				margin-left: auto;
+				margin-right: auto;
+				margin-top: 30%;
+			}
+			
+			.dialogs-mask {
+				position: static;
+				text-align: center;
+				align-items: center;
+				display: none;
+			}
+			
+			.dialog-btn {
+				width: 6rem;
+				padding: 0.65rem;
+				font-size: 1rem;
+				border-radius: 12px;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="haorooms_container">
+
+			<div id="content">
+				<div id="container"></div>
+
+				<img id="clickfile" src="img/icon_cell.png" style="display: none;position: absolute;bottom: 3rem;right: 1rem;" />
+
+				<input type="file" name="pano" id="pano" style="display: none;" />
+				<ul id="myList" class="imagelist">
+					<li>
+						<img id="0" class="meun_img" src="img/sun.jpg" />
+					</li>
+					<li>
+						<img id="1" class="meun_img" src="img/banner1.jpg" />
+					</li>
+					<li>
+						<img id="2" class="meun_img" src="img/banner2.jpg" />
+					</li>
+					<li>
+						<img id="3" class="meun_img" src="img/banner3.jpg" />
+					</li>
+				</ul>
+			</div>
+			<div class="dialogs-mask" id="dialog">
+				<div class="dialog">
+					<div class="dialog-text-box">
+						<h3 class="dialog-text-title">提示</h3>
+						<p class="dialog-text-desc">是否添加标注？</p>
+					</div>
+					<div class="dialog-btn-box">
+						<button id="btnclose" class="dialog-btn dialog-text-close">取消</button>
+						<button id="btncommit" class="dialog-btn dialog-text-commit">添加</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script id="vertexShader" type="x-shader/x-vertex">
+			varying vec2 vUv; void main() { vUv = uv; vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 ); gl_Position = projectionMatrix * mvPosition; }
+		</script>
+
+		<script id="fragmentShader" type="x-shader/x-fragment">
+
+			precision mediump float; uniform float time; uniform float scale; uniform bool isoriginColor; uniform sampler2D texture3; uniform sampler2D texture4; varying vec2 vUv; void main( void ) { vec2 position = - 1.0 + 2.0 * vUv; vec4 color3 = texture2D( texture3, vUv ); vec3 tarcolor =color3.rgb; float f1 =color3.a*scale; vec4 color4 = texture2D( texture4, vUv ); float subscale=1.0-scale; float f2 =color4.a*subscale; if(isoriginColor == false){ tarcolor =mix(tarcolor.rgb,color4.rgb,f2); } gl_FragColor = vec4(tarcolor,1); }
+		</script>
+
+		<script>
+			// 摄像机   ，场景   ，渲染器   ,   资源加载器
+			var camera, scene, renderer, textureLoader;
+			//图片集合
+			var imgs = ["img/sun.jpg", "img/banner1.jpg", "img/banner2.jpg", "img/banner3.jpg"];
+			//当前显示图片集合
+			var child = 0;
+			//是否启动混合替换
+			var isupdata = false;
+			//shader 参数
+			var uniforms;
+			//渲染计时
+			var interval = 0;
+			//递增混合阶段值
+			var count = 0;
+			var dialog, btnclose, btncommit;
+
+			var isUserInteracting = false,
+				onMouseDownMouseX = 0,
+				onMouseDownMouseY = 0,
+				lon = 0,
+				onMouseDownLon = 0,
+				lat = 0,
+				onMouseDownLat = 0,
+				phi = 0,
+				theta = 0;
+
+			init();
+			animate();
+			menuClick();
+
+			function menuClick() {
+				var list = document.getElementById('myList');
+				var listChild = document.getElementsByTagName('li');
+				for(var i = 0; i < listChild.length; i++) {
+					listChild[i].addEventListener('click', function() {
+						var id = this.children[0].id;
+						if(child != id && count == 0) {
+							uniforms.texture3.value = getTextureLoader(child);
+							uniforms.texture4.value = getTextureLoader(id);
+							child = id;
+							isupdata = true;
+						} else {
+
+						}
+
+					}, false);
+				}
+			}
+
+			function init() {
+
+				var container;
+				dialog = document.getElementById("dialog");
+				btnclose = document.getElementById("btnclose");
+				btncommit = document.getElementById("btncommit");
+				container = document.getElementById('container');
+				//新建一个相机
+				camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+				camera.target = new THREE.Vector3(0, 0, 0);
+				//创建一个WebGL渲染器
+				renderer = new THREE.WebGLRenderer();
+				renderer.setPixelRatio(window.devicePixelRatio);
+				renderer.setSize(window.innerWidth, window.innerHeight);
+
+				container.appendChild(renderer.domElement);
+				//新建一个场景
+				scene = new THREE.Scene();
+				//初始化加载器
+				textureLoader = new THREE.TextureLoader();
+				for(var i = 0, len = imgs.length; i < len; i++) {
+
+					setMeshChild(imgs[i]);
+				}
+
+				document.addEventListener('mousedown', onPointerStart, false);
+				document.addEventListener('mousemove', onPointerMove, false);
+				document.addEventListener('mouseup', onPointerUp, false);
+
+				document.addEventListener('wheel', onDocumentMouseWheel, false);
+
+				document.addEventListener('touchstart', onPointerStart, false);
+				document.addEventListener('touchmove', onPointerMove, false);
+				document.addEventListener('touchend', onPointerUp, false);
+				document.addEventListener("dblclick", onDocumentMouseDown, false);
+				//
+
+				document.addEventListener('dragover', function(event) {
+
+					event.preventDefault();
+					event.dataTransfer.dropEffect = 'copy';
+
+				}, false);
+
+				document.addEventListener('dragenter', function() {
+
+					document.body.style.opacity = 0.5;
+
+				}, false);
+
+				document.addEventListener('dragleave', function() {
+
+					document.body.style.opacity = 1;
+
+				}, false);
+
+				//
+
+				window.addEventListener('resize', onWindowResize, false);
+
+			}
+
+			function showDialog(clicklistener) {
+				console.log(dialog.style);
+				if(dialog.style.display != "block") {
+					dialog.style.display = "block";
+				}
+				btncommit.addEventListener("click", function(event) {
+					event.preventDefault();
+					dialog.style.display = "none";
+					clicklistener(true);
+					return false;
+				})
+				btnclose.addEventListener("click", function(event) {
+					event.preventDefault();
+					dialog.style.display = "none";
+					clicklistener(false);
+					return false;
+				})
+
+			}
+			/**
+			 * 获取三维坐标
+			 * @param {Object} event
+			 */
+			function onDocumentMouseDown(event) {
+				event.preventDefault();
+				var vector = new THREE.Vector3(); //三维坐标对象
+				vector.set(
+					(event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1,
+					0.5);
+				vector.unproject(camera);
+				var raycaster = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
+				var intersects = raycaster.intersectObjects(scene.children);
+				if(intersects.length > 0) {
+					var selected = intersects[0]; //取第一个物体
+					console.log("x坐标:" + selected.point.x);
+					console.log("y坐标:" + selected.point.y);
+					console.log("z坐标:" + selected.point.z);
+					var x = selected.point.x;
+					var y = selected.point.y;
+					var z = selected.point.z;
+					showDialog(function(state) {
+						if(state) {
+							addLabelMarker(x, y, z, "img/icon_cell.png");
+						} else {
+							console.log("取消添加");
+						}
+					});
+
+				}
+			}
+			/**
+			 * 
+			 * @param {Object} x
+			 * @param {Object} y
+			 * @param {Object} z
+			 * @param {Object} element
+			 * @param {Object} listener
+			 */
+			function addLabelMarker(x, y, z, imgUrl) {
+				var map = new THREE.TextureLoader().load(imgUrl);
+				map.wrapS = map.wrapT = THREE.RepeatWrapping;
+				map.anisotropy = 16;
+				var material = new THREE.MeshPhongMaterial({
+					map: map,
+					side: THREE.DoubleSide
+				});
+				var geometry = new THREE.SphereBufferGeometry(20, 20, 20);
+				// invert the geometry on the x-axis so that all of the faces point inward
+				geometry.scale(-1, 1, 1);
+				//
+				var mesh = new THREE.Mesh(geometry, material);
+				mesh.position.set(x, y, z);
+				//添加灯光
+				var light = new THREE.PointLight(0xffffff, 1, 100);
+				light.position.set(x, y, z);
+				scene.add(light);
+				scene.add(mesh);
+
+			}
+
+			function setMeshChild(url) {
+				var geometry = new THREE.SphereBufferGeometry(500, 60, 40); // invert the geometry on the x-axis so that all of the faces point inward
+				geometry.scale(-1, 1, 1);
+
+				uniforms = {
+					time: {
+						value: 1.0
+					},
+					scale: {
+						value: 1.0
+					},
+					texture3: {
+						value: getTextureLoader(0)
+					},
+					texture4: {
+						value: getTextureLoader(1)
+					}
+				};
+				var material = new THREE.ShaderMaterial({
+					uniforms: uniforms,
+					vertexShader: document.getElementById('vertexShader').textContent,
+					fragmentShader: document.getElementById('fragmentShader').textContent
+				});
+
+				//网格
+				var mesh = new THREE.Mesh(geometry, material);
+
+				scene.add(mesh);
+
+				document.addEventListener('drop', function(event) {
+
+					event.preventDefault();
+
+					var reader = new FileReader();
+					reader.addEventListener('load', function(event) {
+						material.map.image.src = event.target.result;
+						material.map.needsUpdate = true;
+
+					}, false);
+					reader.readAsDataURL(event.dataTransfer.files[0]);
+
+					document.body.style.opacity = 1;
+
+				}, false);
+
+			}
+
+			function getTextureLoader(index) {
+				return textureLoader.load(imgs[index]);
+			}
+			/**
+			 * 缩放大小
+			 */
+			function onWindowResize(event) {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize(window.innerWidth, window.innerHeight);
+
+			}
+			/**
+			 * 按下 鼠标 或则 触摸
+			 * @param {Object} event
+			 */
+			function onPointerStart(event) {
+
+				isUserInteracting = true;
+
+				var clientX = event.clientX || event.touches[0].clientX;
+				var clientY = event.clientY || event.touches[0].clientY;
+
+				onMouseDownMouseX = clientX;
+				onMouseDownMouseY = clientY;
+
+				onMouseDownLon = lon;
+				onMouseDownLat = lat;
+
+			}
+			/**
+			 * 移动
+			 * @param {Object} event
+			 */
+			function onPointerMove(event) {
+
+				if(isUserInteracting === true) {
+
+					var clientX = event.clientX || event.touches[0].clientX;
+					var clientY = event.clientY || event.touches[0].clientY;
+
+					lon = (onMouseDownMouseX - clientX) * 0.1 + onMouseDownLon;
+					lat = (clientY - onMouseDownMouseY) * 0.1 + onMouseDownLat;
+
+				}
+
+			}
+
+			function onPointerUp() {
+
+				isUserInteracting = false;
+
+			}
+
+			function onDocumentMouseWheel(event) {
+
+				var fov = camera.fov + event.deltaY * 0.05;
+
+				camera.fov = THREE.Math.clamp(fov, 10, 75);
+
+				camera.updateProjectionMatrix();
+
+			}
+
+			function animate(timestamp) {
+				requestAnimationFrame(animate);
+				uniforms.time.value = timestamp / 1000;
+
+				if(timestamp - interval > 200 && isupdata) {
+					if(count <= 20) {
+						var scale = 1.0 - (0.05 * count);
+						uniforms.scale.value = scale;
+						count++;
+					} else {
+						isupdata = false;
+						count = 0;
+					}
+					interval = timestamp
+				}
+
+				update();
+
+			}
+
+			function update() {
+
+				if(isUserInteracting === false) {
+
+					lon += 0.1;
+
+				}
+
+				lat = Math.max(-85, Math.min(85, lat));
+				phi = THREE.Math.degToRad(90 - lat);
+				theta = THREE.Math.degToRad(lon);
+
+				camera.target.x = 500 * Math.sin(phi) * Math.cos(theta);
+				camera.target.y = 500 * Math.cos(phi);
+				camera.target.z = 500 * Math.sin(phi) * Math.sin(theta);
+
+				camera.lookAt(camera.target);
+				//将场景渲染到摄像机
+				renderer.render(scene, camera);
+
+			}
+		</script>
+	</body>
+
+</html>
